@@ -1,0 +1,212 @@
+echo "# RINCONbonuSassignmenT" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/SAMSMASAM/RINCONbonuSassignmenT.git
+git push -u origin main
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#define CACHE_SIZE 32
+#define BLOCK_SIZE 4
+
+typedef struct {
+    int tag;
+    int valid;
+    int data[BLOCK_SIZE];
+} CacheBlock;
+
+typedef struct {
+    CacheBlock blocks[CACHE_SIZE];
+} Cache;
+
+void init_cache(Cache *cache) {  //initializes cache with 0s and -1s
+    int i;
+    for (i = 0; i < CACHE_SIZE; i++) {
+        cache->blocks[i].tag = -1;
+        cache->blocks[i].valid = 0;
+    }
+}
+
+void read_address_direct_mapped(Cache *cache, int address, int *num_hits, int *num_accesses) {
+    int index = address / BLOCK_SIZE % CACHE_SIZE;
+    int tag = address / BLOCK_SIZE / CACHE_SIZE;
+
+    if (cache->blocks[index].valid && cache->blocks[index].tag == tag) {// in the case of hit
+        (*num_hits)++;
+    } 
+else { // in the case of miss
+        cache->blocks[index].valid = 1;
+        cache->blocks[index].tag = tag;
+        
+        int i;
+        for (i = 0; i < BLOCK_SIZE; i++) {
+            cache->blocks[index].data[i] = address + i;
+        }
+    }
+    (*num_accesses)++;
+}
+
+void read_address_two_way(Cache *cache, int address, int *num_hits, int *num_accesses) {
+//
+    int index = address / BLOCK_SIZE % (CACHE_SIZE / 2);
+    int tag = address / BLOCK_SIZE / (CACHE_SIZE / 2);
+    int set = index % 2;
+
+    if (cache->blocks[index * 2 + set].valid && cache->blocks[index * 2 + set].tag == tag) { // Hit
+        (*num_hits)++;
+    } 
+    else { // Miss
+        int other_set = set == 0 ? 1 : 0;
+        if (cache->blocks[index * 2 + other_set].valid && cache->blocks[index * 2 + other_set].tag == tag) {
+            // this removes the other block that is in the set
+            cache->blocks[index * 2 + other_set].valid = 0;
+        }
+        cache->blocks[index * 2 + set].valid = 1;
+        cache->blocks[index * 2 + set].tag = tag;
+        int i;
+        for (i = 0; i < BLOCK_SIZE; i++) {
+            cache->blocks[index * 2 + set].data[i] = address + i;
+        }
+    }
+    (*num_accesses)++;
+}
+
+
+void read_address_four_way(Cache *cache, int address, int *num_hits, int *num_accesses) {
+//needs index taf and set variable
+    int index = address / BLOCK_SIZE % (CACHE_SIZE / 4);
+    int tag = address / BLOCK_SIZE / (CACHE_SIZE / 4);
+    int set = index % 4;
+
+    if (cache->blocks[index * 4 + set].valid && cache->blocks[index * 4 + set].tag == tag) { // Hit
+        (*num_hits)++;
+    } 
+    else { // Miss
+        int i;
+        int min = cache->blocks[index * 4].tag;
+        int min_index = index * 4;
+        
+        for (i = 1; i < 4; i++) { //reads thru
+            if (!cache->blocks[index * 4 + i].valid) {
+                min_index = index * 4 + i;
+                break;
+            } 
+            else if (cache->blocks[index * 4 + i].tag < min) {
+min = cache->blocks[index * 4 + i].tag;
+min_index = index * 4 + i;
+}
+}
+
+//matches tag and makes valid
+cache->blocks[min_index].valid = 1;
+cache->blocks[min_index].tag = tag;
+
+//reads thru 
+int j;
+for (j = 0; j < BLOCK_SIZE; j++) {
+cache->blocks[min_index].data[j] = address + j;
+}
+}
+(*num_accesses)++;
+}
+
+void read_address_fully_associative(Cache *cache, int address, int *num_hits, int *num_accesses) {
+int tag = address / BLOCK_SIZE;
+
+int i; //counter
+for (i = 0; i < CACHE_SIZE; i++) {
+if (cache->blocks[i].valid && cache->blocks[i].tag == tag) { // Hits if valid slot and tag matches tag
+(*num_hits)++;
+return;
+}
+} // Miss case
+int min = cache->blocks[0].tag;
+int min_index = 0;
+
+for (i = 1; i < CACHE_SIZE; i++) {
+if (!cache->blocks[i].valid) {
+min_index = i;
+break;
+} else if (cache->blocks[i].tag < min) {
+min = cache->blocks[i].tag;
+min_index = i;
+}
+}
+cache->blocks[min_index].valid = 1;
+cache->blocks[min_index].tag = tag;
+
+int j;
+for (j = 0; j < BLOCK_SIZE; j++) {
+cache->blocks[min_index].data[j] = address + j;
+}
+(*num_accesses)++;
+}
+
+int main(int argc, char *argv[]) {
+
+char *filename = argv[1];
+FILE *file = fopen(filename, "traces.txt");
+if (file == NULL) { // try catch for file null
+    printf("Error: Cannot open file %s\n", filename);
+    return 1;
+}
+
+// initializes all types of caches
+Cache cache_direct_mapped;
+Cache cache_two_way;
+Cache cache_four_way;
+Cache cache_fully_associative;
+
+init_cache(&cache_direct_mapped);
+init_cache(&cache_two_way);
+init_cache(&cache_four_way);
+init_cache(&cache_fully_associative);
+
+int num_hits_direct_mapped = 0;
+int num_hits_two_way = 0;
+int num_hits_four_way = 0;
+int num_hits_fully_associative = 0;
+
+int num_accesses_direct_mapped = 0;
+int num_accesses_two_way = 0;
+int num_accesses_four_way = 0;
+int num_accesses_fully_associative = 0;
+
+int address;
+while (fscanf(file, "%d", &address) != EOF) {
+//reads addresses in organized fashion
+    read_address_direct_mapped(&cache_direct_mapped, address, &num_hits_direct_mapped, &num_accesses_direct_mapped);
+    read_address_two_way(&cache_two_way, address, &num_hits_two_way, &num_accesses_two_way);
+    read_address_four_way(&cache_four_way, address, &num_hits_four_way, &num_accesses_four_way);
+    read_address_fully_associative(&cache_fully_associative, address, &num_hits_fully_associative, &num_accesses_fully_associative);
+}
+
+fclose(file);
+
+//prints all the info out in an organized fashion
+printf("Direct-mapped cache:\n");
+printf("Number of hits: %d\n", num_hits_direct_mapped);
+printf("Number of total accesses: %d\n", num_accesses_direct_mapped);
+printf("Hit rate: %.2f%%\n\n", (float) num_hits_direct_mapped / num_accesses_direct_mapped * 100);
+
+printf("2-way set-associative cache:\n");
+printf("Number of hits: %d\n", num_hits_two_way);
+printf("Number of total accesses: %d\n", num_accesses_two_way);
+printf("Hit rate: %.2f%%\n\n", (float) num_hits_two_way / num_accesses_two_way * 100);
+
+printf("4-way set-associative cache:\n");
+printf("Number of hits: %d\n", num_hits_four_way);
+printf("Number of total accesses: %d\n", num_accesses_four_way);
+printf("Hit rate: %.2f%%\n\n", (float) num_hits_four_way / num_accesses_four_way * 100);
+
+printf("Fully associative cache:\n");
+printf("Number of hits: %d\n", num_hits_fully_associative);
+printf("Number of total accesses: %d\n", num_accesses_fully_associative);
+printf("Hit rate: %.2f%%\n", (float) num_hits_fully_associative / num_accesses_fully_associative * 100);
+
+return 0;
+
+}
